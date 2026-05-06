@@ -354,19 +354,16 @@ body {
   gap: 10px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(63,185,80,0.1);
   opacity: 0;
-  transition: transform 0.48s cubic-bezier(0.2,0.8,0.2,1), opacity 0.48s ease;
+  transition: transform 0.52s cubic-bezier(0.34, 1.4, 0.64, 1), opacity 0.38s ease;
   pointer-events: none;
+  will-change: transform, opacity;
 }
 #apk-banner.show {
   transform: translateX(-50%) translateY(0);
   opacity: 1;
   pointer-events: auto;
 }
-#apk-banner.hidden-in-app {
-  opacity: 0 !important;
-  pointer-events: none !important;
-  transform: translateX(-50%) translateY(calc(100% + 40px)) !important;
-}
+/* hidden-in-app no longer used — banner show/hide handled via .show only */
 .apk-banner-dot {
   width: 34px; height: 34px; flex-shrink: 0;
   background: rgba(63,185,80,0.1);
@@ -1103,10 +1100,7 @@ function clearMenuSearch() {
       spinner.style.transform = 'translateY(0) scale(1)';
       spinner.style.opacity = '1';
       // Short pause so user sees the spinner before reload
-      setTimeout(() => {
-        sessionStorage.setItem('duet-ptr-reload', '1');
-        window.location.reload();
-      }, 400);
+      setTimeout(() => window.location.reload(), 400);
     } else {
       // Snap back
       spinner.style.transition = 'opacity 0.25s ease, transform 0.3s cubic-bezier(0.34,1.56,0.64,1)';
@@ -1143,51 +1137,72 @@ function clearMenuSearch() {
 </div>
 
 <script>
-// APK Banner — shows on every page load/reload unless dismissed THIS session.
-// Pull-to-reload: banner pops up instantly (no delay) after reload.
-// Back to home: re-shows if not dismissed.
-(function() {
-  var banner = document.getElementById('apk-banner');
+// ================================================
+// APK BANNER — bulletproof implementation
+// - Shows on EVERY load/reload (pull-to-reload included) with smooth animation
+// - Re-shows when user goes back to home screen
+// - Only hidden when user taps X (stored in sessionStorage, clears on reload)
+// ================================================
+var BANNER_DISMISSED_KEY = 'apk-dismissed';
+var _bannerShowToken = 0; // incremented on every show attempt; cancels stale timeouts
 
-  function isDismissed() {
-    return sessionStorage.getItem('duet-banner-dismissed') === '1';
-  }
+function isBannerDismissed() {
+  return sessionStorage.getItem(BANNER_DISMISSED_KEY) === '1';
+}
 
-  function isAppVisible() {
-    return document.getElementById('app').classList.contains('show');
-  }
+function isAppVisible() {
+  return document.getElementById('app').classList.contains('show');
+}
 
-  function showBannerIfAllowed() {
-    if (!isDismissed() && !isAppVisible()) {
-      banner.classList.remove('hidden-in-app');
-      banner.classList.add('show');
-    }
-  }
+function showBannerNow() {
+  var b = document.getElementById('apk-banner');
+  var token = ++_bannerShowToken;
 
-  function syncBanner() {
-    if (isAppVisible()) {
-      banner.classList.add('hidden-in-app');
-      banner.classList.remove('show');
-    } else {
-      // Returned to home — re-show if not dismissed
-      showBannerIfAllowed();
-    }
-  }
+  // Remove show first so CSS transition has a from-state to animate from
+  b.classList.remove('show');
 
-  // Show instantly on every load (no delay) — pull-to-reload or normal reload
-  sessionStorage.removeItem('duet-ptr-reload');
-  showBannerIfAllowed();
+  // Use setTimeout — reliable on Android content:// even without rAF
+  setTimeout(function() {
+    if (token !== _bannerShowToken) return; // cancelled by hide or newer show
+    if (isAppVisible()) return;             // user already navigated to app
+    b.classList.add('show');
+  }, 100);
+}
 
-  new MutationObserver(syncBanner).observe(
-    document.getElementById('app'),
-    { attributes: true, attributeFilter: ['class'] }
-  );
-})();
+function hideBannerNow() {
+  _bannerShowToken++; // cancel any pending showBannerNow timeout
+  var b = document.getElementById('apk-banner');
+  b.classList.remove('show');
+}
 
 function dismissBanner() {
-  document.getElementById('apk-banner').classList.remove('show');
-  sessionStorage.setItem('duet-banner-dismissed', '1');
+  sessionStorage.setItem(BANNER_DISMISSED_KEY, '1');
+  hideBannerNow();
 }
+
+// Clear dismiss on every full page load — reload always resets it
+sessionStorage.removeItem(BANNER_DISMISSED_KEY);
+
+// Show on page load — handles both cases:
+// 1. Script runs before load event fires (normal)
+// 2. Script runs after load event already fired (content:// on Android)
+if (document.readyState === 'complete') {
+  showBannerNow();
+} else {
+  window.addEventListener('load', showBannerNow);
+}
+
+// Sync banner when user navigates between home and app
+var appEl = document.getElementById('app');
+new MutationObserver(function() {
+  if (appEl.classList.contains('show')) {
+    hideBannerNow();
+  } else {
+    if (!isBannerDismissed()) {
+      showBannerNow();
+    }
+  }
+}).observe(appEl, { attributes: true, attributeFilter: ['class'] });
 </script>
 
 </body>
