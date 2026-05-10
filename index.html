@@ -1624,9 +1624,9 @@ body {
 
   /* ── Card icon & text — forced comfortable mobile sizes ── */
   .card-icon svg { width: 36px; height: 36px; }
-  .card-label { font-size: 17px; }
+  .card-label { font-size: 18.5px; }
   .card-label-hint { font-size: 11px; display: none; }
-  .card-desc { font-size: 13px; }
+  .card-desc { font-size: 14px; }
 
   /* ── Download icon & text — forced comfortable mobile sizes ── */
   .dl-icon { width: 42px; height: 42px; }
@@ -1802,13 +1802,19 @@ body {
 }
 
 /* ===== DUET LOGO — dark/light theme adaptive ===== */
-.logo-adaptive {
-  /* In dark mode: logo renders as-is (light fills on dark bg) */
-  filter: none;
+/* Always keep the background squircle white */
+.logo-adaptive .st0 {
+  fill: #FFFFFF !important;
 }
-[data-theme="light"] .logo-adaptive {
-  /* In light mode: invert to make dark fills visible on light bg */
-  filter: invert(1) hue-rotate(180deg);
+
+/* Dark mode (default): Foreground text/graphics are Theme Blue */
+.logo-adaptive path:not(.st0) {
+  fill: var(--accent) !important;
+}
+
+/* Light mode: Foreground text/graphics are Black */
+[data-theme="light"] .logo-adaptive path:not(.st0) {
+  fill: var(--text) !important;
 }
 </style>
 <script>
